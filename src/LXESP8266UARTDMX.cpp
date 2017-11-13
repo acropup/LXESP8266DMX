@@ -59,7 +59,7 @@ UID LX8266DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x00, 0x01);
  *
  *
  * UART0 TX: 1 or 2				SPECIAL or FUNCTION_4
- * UART0 RX: 3						SPECIAL
+ * UART0 RX: 3					SPECIAL
  *
  * UART0 SWAP TX: 15
  * UART0 SWAP RX: 13
@@ -101,58 +101,57 @@ void uart_uninit_rdm(void);
 
 ICACHE_RAM_ATTR void uart_tx_interrupt_handler(LX8266DMX* dmxo) {
 
-    // -------------- UART 1 --------------
-    // check uart status register 
-    // if fifo is empty clear interrupt
-    // then call _tx_empty_irq
-	  if(U1IS & (1 << UIFE)) {
-			U1IC = (1 << UIFE);
-			dmxo->txEmptyInterruptHandler();
-	  }
-	 
+	// -------------- UART 1 --------------
+	// check uart status register 
+	// if fifo is empty clear interrupt
+	// then call _tx_empty_irq
+	if(U1IS & (1 << UIFE)) {
+		U1IC = (1 << UIFE);
+		dmxo->txEmptyInterruptHandler();
+	}
 }
 
 ICACHE_RAM_ATTR void uart_rx_interrupt_handler(LX8266DMX* dmxi) {
 
-    // -------------- UART 0 --------------
-    // check uart status register 
-    // if read buffer is full, call receiveInterruptHandler and then clear interrupt
+	// -------------- UART 0 --------------
+	// check uart status register 
+	// if read buffer is full, call receiveInterruptHandler and then clear interrupt
 
-	  while(U0IS & (1 << UIFF)) {
-			dmxi->byteReceived((char) (U0F & 0xff));
-			U0IC = (1 << UIFF);
-	  }
-     
-     // if break detected, call receiveInterruptHandler and then clear interrupt
-     if ( (U0IS & (1 << UIBD)) ) {				//break detected
-     		dmxi->breakReceived();
-     		U0IC |= (1 << UIBD);
-     }
+	while(U0IS & (1 << UIFF)) {
+		dmxi->byteReceived((char) (U0F & 0xff));
+		U0IC = (1 << UIFF);
+	}
+	
+	// if break detected, call receiveInterruptHandler and then clear interrupt
+	if ( (U0IS & (1 << UIBD)) ) {				//break detected
+		dmxi->breakReceived();
+		U0IC |= (1 << UIBD);
+	}
 }
 
 ICACHE_RAM_ATTR void uart_rdm_interrupt_handler(LX8266DMX* dmxr) {
 
-    // -------------- UART 0 --------------
-    // check uart status register 
-    // if read buffer is full, call receiveInterruptHandler and then clear interrupt
+	// -------------- UART 0 --------------
+	// check uart status register 
+	// if read buffer is full, call receiveInterruptHandler and then clear interrupt
 
-	  while(U0IS & (1 << UIFF)) {
-			dmxr->byteReceived((char) (U0F & 0xff));
-			U0IC = (1 << UIFF);
-	  }
-     
-     // if break detected, call receiveInterruptHandler and then clear interrupt
-     if ( (U0IS & (1 << UIBD)) ) {				//break detected
-     		dmxr->breakReceived();
-     		U0IC |= (1 << UIBD);
-     }
-     
-     if ( dmxr->rdmTaskMode() ) {
-		 if (U1IS & (1 << UIFE)) {
+	while(U0IS & (1 << UIFF)) {
+		dmxr->byteReceived((char) (U0F & 0xff));
+		U0IC = (1 << UIFF);
+	}
+	
+	// if break detected, call receiveInterruptHandler and then clear interrupt
+	if ( (U0IS & (1 << UIBD)) ) {				//break detected
+		dmxr->breakReceived();
+		U0IC |= (1 << UIBD);
+	}
+	
+	if ( dmxr->rdmTaskMode() ) {
+		if (U1IS & (1 << UIFE)) {
 			U1IC = (1 << UIFE);
 			dmxr->rdmTxEmptyInterruptHandler();
-		 }
-     }
+		}
+	}
 }
 
 
@@ -160,22 +159,22 @@ ICACHE_RAM_ATTR void uart_rdm_interrupt_handler(LX8266DMX* dmxr) {
 
 //LX uses uart1 for tx
 void uart_tx_flush(void) {
-    uint32_t tmp = 0x00000000;
+	uint32_t tmp = 0x00000000;
 
-    tmp |= (1 << UCTXRST);
-    
-    USC0(UART1) |= (tmp);
-    USC0(UART1) &= ~(tmp);
+	tmp |= (1 << UCTXRST);
+	
+	USC0(UART1) |= (tmp);
+	USC0(UART1) &= ~(tmp);
 }
 
 //LX uses uart0 for rx
 void uart_rx_flush(void) {
-    uint32_t tmp = 0x00000000;
+	uint32_t tmp = 0x00000000;
 
-    tmp |= (1 << UCRXRST);
+	tmp |= (1 << UCRXRST);
 
-    USC0(UART0) |= (tmp);
-    USC0(UART0) &= ~(tmp);
+	USC0(UART0) |= (tmp);
+	USC0(UART0) &= ~(tmp);
 }
 
 
@@ -185,31 +184,31 @@ void uart_rx_flush(void) {
 void uart_enable_rx_interrupt(LX8266DMX* dmxi) {
 	USIC(UART0) = 0x1ff;
 	ETS_UART_INTR_ATTACH(&uart_rx_interrupt_handler, dmxi);
-    USIE(UART0) |= (1 << UIFF);   //receive full
-    //USIE(UART0) |= (1 << UIFR); frame error
-    USIE(UART0) |= (1 << UIBD);   //break detected
-    ETS_UART_INTR_ENABLE();
+	USIE(UART0) |= (1 << UIFF);	//receive full
+	//USIE(UART0) |= (1 << UIFR); frame error
+	USIE(UART0) |= (1 << UIBD);	//break detected
+	ETS_UART_INTR_ENABLE();
 }
 
 //LX uses uart0 for rx
 void uart_disable_rx_interrupt(void) {
-   USIE(UART0) &= ~(1 << UIFF);
-   //ETS_UART_INTR_DISABLE();		disables all UART interrupts including Hardware serial
+	USIE(UART0) &= ~(1 << UIFF);
+	//ETS_UART_INTR_DISABLE();		disables all UART interrupts including Hardware serial
 }
 
 // ------------- uart_enable/disable TX functions
 //LX uses uart1 for tx
 void uart_enable_tx_interrupt(LX8266DMX* dmxo) {
-	USIC(UART1) = 0x1ff;								//clear interrupts	
+	USIC(UART1) = 0x1ff;								//clear interrupts
 	ETS_UART_INTR_ATTACH(&uart_tx_interrupt_handler, dmxo);
-   USIE(UART1) |= (1 << UIFE);							//enable fifo empty interrupt
-   ETS_UART_INTR_ENABLE();
+	USIE(UART1) |= (1 << UIFE);							//enable fifo empty interrupt
+	ETS_UART_INTR_ENABLE();
 }
 
 //LX uses uart1 for tx
 void uart_disable_tx_interrupt(void) {
-   USIE(UART1) &= ~(1 << UIFE);
-   //ETS_UART_INTR_DISABLE();		disables all UART interrupts including Hardware serial
+	USIE(UART1) &= ~(1 << UIFE);
+	//ETS_UART_INTR_DISABLE();		disables all UART interrupts including Hardware serial
 }
 
 // ------------- uart_enable/disable RDM functions
@@ -223,30 +222,30 @@ void uart_enable_rdm_interrupts(LX8266DMX* dmxr) {
 
 //RX
 	USIC(UART0) = 0x1ff;
-    USIE(UART0) |= (1 << UIFF);   //receive full
-    USIE(UART0) |= (1 << UIBD);   //break detected
-    
-    ETS_UART_INTR_ATTACH(&uart_rdm_interrupt_handler, dmxr);
-    ETS_UART_INTR_ENABLE();
+	USIE(UART0) |= (1 << UIFF);	//receive full
+	USIE(UART0) |= (1 << UIBD);	//break detected
+	
+	ETS_UART_INTR_ATTACH(&uart_rdm_interrupt_handler, dmxr);
+	ETS_UART_INTR_ENABLE();
 }
 
 void uart_disable_rdm_interrupts(void) {
 //TX
-   USIE(UART1) &= ~(1 << UIFE);
+	USIE(UART1) &= ~(1 << UIFE);
 //RX
-   USIE(UART0) &= ~(1 << UIFF);
+	USIE(UART0) &= ~(1 << UIFF);
 }
 
 // ------------- uart_set functions
 
 //LX uses uart1 for tx, uart0 for rx
 void uart_set_baudrate(int uart_nr, int baud_rate) {
-    USD(uart_nr) = (ESP8266_CLOCK / baud_rate);
+	USD(uart_nr) = (ESP8266_CLOCK / baud_rate);
 }
 
 //LX uses uart1 for tx, uart0 for rx
 void uart_set_config(int uart_nr, byte config) {
-    USC0(uart_nr) = config;
+	USC0(uart_nr) = config;
 }
 
 // ------------- uart_init functions
@@ -255,28 +254,28 @@ void uart_init_tx(int baudrate, byte config, LX8266DMX* dmxo) {
 	pinMode(2, SPECIAL);
 	uint32_t conf1 = 0x00000000;
 	
-    uart_set_baudrate(UART1, baudrate);
-    USC0(UART1) = config;
-    uart_tx_flush();
-    uart_enable_tx_interrupt(dmxo);
+	uart_set_baudrate(UART1, baudrate);
+	USC0(UART1) = config;
+	uart_tx_flush();
+	uart_enable_tx_interrupt(dmxo);
 
-    //conf1 |= (0x00 << UCFET);// tx empty threshold is zero
-    						   // tx fifo empty interrupt triggers continuously unless
-    						   // data register contains a byte which has not moved to shift reg yet
-    USC1(UART1) = conf1;
+	//conf1 |= (0x00 << UCFET);	// tx empty threshold is zero
+								// tx fifo empty interrupt triggers continuously unless
+								// data register contains a byte which has not moved to shift reg yet
+	USC1(UART1) = conf1;
 }
 
 void uart_init_rx(int baudrate, byte config, LX8266DMX* dmxi) {
-    uint32_t conf1 = 0x00000000;
-    pinMode(3, SPECIAL);
-    uart_set_baudrate(UART0, baudrate);
-    USC0(UART0) = config;
-    
-    conf1 |= (0x01 << UCFFT);
-    USC1(UART0) = conf1;
+	uint32_t conf1 = 0x00000000;
+	pinMode(3, SPECIAL);
+	uart_set_baudrate(UART0, baudrate);
+	USC0(UART0) = config;
+	
+	conf1 |= (0x01 << UCFFT);
+	USC1(UART0) = conf1;
 
-    uart_rx_flush();
-    uart_enable_rx_interrupt(dmxi);
+	uart_rx_flush();
+	uart_enable_rx_interrupt(dmxi);
 }
 
 void uart_init_rdm(int baudrate, byte config, int txbaudrate, byte txconfig, LX8266DMX* dmxr) {
@@ -284,43 +283,43 @@ void uart_init_rdm(int baudrate, byte config, int txbaudrate, byte txconfig, LX8
 	pinMode(2, SPECIAL);
 	uint32_t conf1 = 0x00000000;
 	
-    uart_set_baudrate(UART1, txbaudrate);
-    USC0(UART1) = txconfig;
-    uart_tx_flush();
+	uart_set_baudrate(UART1, txbaudrate);
+	USC0(UART1) = txconfig;
+	uart_tx_flush();
 
-    //conf1 |= (0x00 << UCFET);// tx empty threshold is zero
-    						   // tx fifo empty interrupt triggers continuously unless
-    						   // data register contains a byte which has not moved to shift reg yet
-    USC1(UART1) = conf1;
+	//conf1 |= (0x00 << UCFET);	// tx empty threshold is zero
+								// tx fifo empty interrupt triggers continuously unless
+								// data register contains a byte which has not moved to shift reg yet
+	USC1(UART1) = conf1;
 
 //RX
-    conf1 = 0x00000000;
-    pinMode(3, SPECIAL);
-    uart_set_baudrate(UART0, baudrate);
-    USC0(UART0) = config;
-    
-    conf1 |= (0x01 << UCFFT);
-    USC1(UART0) = conf1;
+	conf1 = 0x00000000;
+	pinMode(3, SPECIAL);
+	uart_set_baudrate(UART0, baudrate);
+	USC0(UART0) = config;
+	
+	conf1 |= (0x01 << UCFFT);
+	USC1(UART0) = conf1;
 
-    uart_rx_flush();
-    
-    uart_enable_rdm_interrupts(dmxr);
+	uart_rx_flush();
+	
+	uart_enable_rdm_interrupts(dmxr);
 }
 
 // ------------- uart_uninit functions
 
 void uart_uninit_tx(void) {
-    uart_disable_tx_interrupt();
-	 pinMode(2, INPUT);
+	uart_disable_tx_interrupt();
+	pinMode(2, INPUT);
 }
 
 void uart_uninit_rx(void) {
-    uart_disable_rx_interrupt();
-	 pinMode(3, INPUT);
+	uart_disable_rx_interrupt();
+	pinMode(3, INPUT);
 }
 
 void uart_uninit_rdm(void) {
-    uart_uninit_rx();
+	uart_uninit_rx();
 	uart_uninit_tx();
 }
 
@@ -328,19 +327,19 @@ void uart_uninit_rdm(void) {
 
 // UART register definitions see esp8266_peri.h
 
-#define DMX_DATA_BAUD		250000
-#define DMX_BREAK_BAUD 	 	88000
+#define DMX_DATA_BAUD	250000
+#define DMX_BREAK_BAUD	88000
 /*
-#define UART_STOP_BIT_NUM_SHIFT  4
-TWO_STOP_BIT             = 0x3
-ONE_STOP_BIT             = 0x1,
+#define UART_STOP_BIT_NUM_SHIFT	4
+TWO_STOP_BIT = 0x3
+ONE_STOP_BIT = 0x1,
 
-#define UART_BIT_NUM_SHIFT       2
+#define UART_BIT_NUM_SHIFT		2
 EIGHT_BITS = 0x3
 
 parity
-#define UCPAE   1  //Parity Enable			(possibly set for none??)
-#define UCPA    0  //Parity 0:even, 1:odd
+#define UCPAE	1	//Parity Enable			(possibly set for none??)
+#define UCPA	0	//Parity 0:even, 1:odd
 
 111100 = 8n2  = 60 = 0x3C  (or 0x3E if bit1 is set for no parity)
 011100 = 8n1  = 28 = 0x1C
@@ -352,21 +351,21 @@ parity
 
 
  //***** states indicate current position in DMX stream
-    #define DMX_STATE_BREAK 0
-    #define DMX_STATE_START 1
-    #define DMX_STATE_DATA 2
-    #define DMX_STATE_IDLE 3
+	#define DMX_STATE_BREAK	0
+	#define DMX_STATE_START	1
+	#define DMX_STATE_DATA	2
+	#define DMX_STATE_IDLE	3
 	#define DMX_STATE_BREAK_SENT 4
 	
 	//***** interrupts to wait before changing Baud
-    #define DATA_END_WAIT 50		//initially was 25 with processor at 80 mHz  set to 50 @ 160mHz
-    #define BREAK_SENT_WAIT 80		//initially was 70 with processor at 80 mHz  set to 80 @ 160mHz
+	#define DATA_END_WAIT	50		//initially was 25 with processor at 80 mHz  set to 50 @ 160mHz
+	#define BREAK_SENT_WAIT 80		//initially was 70 with processor at 80 mHz  set to 80 @ 160mHz
 
 	//***** status is if interrupts are enabled and IO is active
-    #define ISR_DISABLED 		0
-    #define ISR_OUTPUT_ENABLED 	1
-    #define ISR_INPUT_ENABLED 	2
-    #define ISR_RDM_ENABLED 	3
+	#define ISR_DISABLED 		0
+	#define ISR_OUTPUT_ENABLED 	1
+	#define ISR_INPUT_ENABLED 	2
+	#define ISR_RDM_ENABLED 	3
 
 
 /*******************************************************************************
@@ -380,8 +379,8 @@ LX8266DMX::LX8266DMX ( void ) {
 }
 
 LX8266DMX::~LX8266DMX ( void ) {
-    stop();
-    _receive_callback = NULL;
+	stop();
+	_receive_callback = NULL;
 }
 
 void LX8266DMX::startOutput ( void ) {
@@ -407,9 +406,9 @@ void LX8266DMX::startInput ( void ) {
 		stop();
 	}
 	if ( _interrupt_status == ISR_DISABLED ) {	//prevent messing up sequence if already started...
-	   _dmx_read_state = DMX_STATE_IDLE;
-	   uart_init_rx(DMX_DATA_BAUD, FORMAT_8N2, this);
-	   _interrupt_status = ISR_INPUT_ENABLED;
+		_dmx_read_state = DMX_STATE_IDLE;
+		uart_init_rx(DMX_DATA_BAUD, FORMAT_8N2, this);
+		_interrupt_status = ISR_INPUT_ENABLED;
 	}
 }
 
@@ -429,7 +428,7 @@ void LX8266DMX::startRDM ( uint8_t pin, uint8_t direction ) {
 		_idle_count = 0;
 		//RX
 		_dmx_read_state = DMX_STATE_IDLE;
-	    uart_init_rdm(DMX_DATA_BAUD, FORMAT_8N2, DMX_BREAK_BAUD, FORMAT_8E1, this);							
+		uart_init_rdm(DMX_DATA_BAUD, FORMAT_8N2, DMX_BREAK_BAUD, FORMAT_8E1, this);
 	}
 	
 	if ( direction == 0 ) {
@@ -605,7 +604,7 @@ ICACHE_RAM_ATTR void LX8266DMX::rdmTxEmptyInterruptHandler(void) {
 					_dmx_send_state = DMX_STATE_BREAK;
 					
 					//setTask to receive
-					USIE(UART1) &= ~(1 << UIFE); 			// uart_disable_tx_interrupt();
+					USIE(UART1) &= ~(1 << UIFE);			// uart_disable_tx_interrupt();
 					digitalWrite(_direction_pin, LOW);		// call from interrupt only because receiving starts
 					_next_read_slot = 0;						// and these flags need to be set
 					_packet_length = DMX_MAX_FRAME;			// but no bytes read from fifo until next task loop
@@ -613,7 +612,7 @@ ICACHE_RAM_ATTR void LX8266DMX::rdmTxEmptyInterruptHandler(void) {
 						_dmx_read_state = DMX_READ_STATE_RECEIVING;
 					} else {
 						_dmx_read_state = DMX_READ_STATE_IDLE;// if not after controller message, wait for a break
-					}										  // signaling start of packet
+					}										// signaling start of packet
 					_rdm_task_mode = DMX_TASK_RECEIVE;
 					
 				}
@@ -788,28 +787,28 @@ ICACHE_RAM_ATTR uint8_t LX8266DMX::rdmTaskMode( void ) {		// applies to bidirect
 
 void LX8266DMX::setTaskSendDMX( void ) {		// only valid if connection started using startRDM()
 	digitalWrite(_direction_pin, HIGH);
-	 _rdm_task_mode = DMX_TASK_SEND;
+	_rdm_task_mode = DMX_TASK_SEND;
 }
 
 
 ICACHE_RAM_ATTR void LX8266DMX::restoreTaskSendDMX( void ) {		// only valid if connection started using startRDM()
 	digitalWrite(_direction_pin, HIGH);
 	_dmx_send_state = DMX_STATE_BREAK;
-	 _rdm_task_mode = DMX_TASK_SET_SEND;
-	 USIE(UART1) |= (1 << UIFE);					//restore the interrupt
-	 do {
-	 	delay(1);
-	 } while ( _rdm_task_mode != DMX_TASK_SEND );	//set to send on interrupt pass after first DMX frame sent
+	_rdm_task_mode = DMX_TASK_SET_SEND;
+	USIE(UART1) |= (1 << UIFE);					//restore the interrupt
+	do {
+		delay(1);
+	} while ( _rdm_task_mode != DMX_TASK_SEND );	//set to send on interrupt pass after first DMX frame sent
 }
 
 void LX8266DMX::setTaskReceive( void ) {		// only valid if connection started using startRDM()
 	_next_read_slot = 0;
 	_packet_length = DMX_MAX_FRAME;
-    _dmx_send_state = DMX_STATE_IDLE;
-    _rdm_task_mode = DMX_TASK_RECEIVE;
-    _rdm_read_handled = 0;
-    USIE(UART1) &= ~(1 << UIFE);				// uart_disable_tx_interrupt();
-    digitalWrite(_direction_pin, LOW);
+	_dmx_send_state = DMX_STATE_IDLE;
+	_rdm_task_mode = DMX_TASK_RECEIVE;
+	_rdm_read_handled = 0;
+	USIE(UART1) &= ~(1 << UIFE);				// uart_disable_tx_interrupt();
+	digitalWrite(_direction_pin, LOW);
 }
 
 void LX8266DMX::sendRawRDMPacket( uint8_t len ) {		// only valid if connection started using startRDM()
@@ -826,7 +825,7 @@ void LX8266DMX::sendRawRDMPacket( uint8_t len ) {		// only valid if connection s
 		delayMicroseconds(100);
 		_dmx_send_state = DMX_STATE_BREAK;
 		_rdm_task_mode = DMX_TASK_SEND_RDM;
-		 //set the interrupt
+		//set the interrupt
 		USIE(UART1) |= (1 << UIFE);
 	}
 	
@@ -837,42 +836,42 @@ void LX8266DMX::sendRawRDMPacket( uint8_t len ) {		// only valid if connection s
 
 void  LX8266DMX::setupRDMControllerPacket(uint8_t* pdata, uint8_t msglen, uint8_t port, uint16_t subdevice) {
 	pdata[RDM_IDX_START_CODE]		= RDM_START_CODE;
-  	pdata[RDM_IDX_SUB_START_CODE]	= RDM_SUB_START_CODE;
-  	pdata[RDM_IDX_PACKET_SIZE]		= msglen;
-  	
-  	// must set target UID outside this method
-  	UID::copyFromUID(THIS_DEVICE_ID, pdata, RDM_IDX_SOURCE_UID);
-  	
-  	pdata[RDM_IDX_TRANSACTION_NUM]	= _transaction++;
-  	pdata[RDM_IDX_PORT]				= port;
-  	pdata[RDM_IDX_MSG_COUNT]		= 0x00;		//(always zero for controller msgs)
-  	pdata[RDM_IDX_SUB_DEV_MSB] 		= subdevice >> 8;
-  	pdata[RDM_IDX_SUB_DEV_LSB] 		= subdevice & 0xFF;
-  	// total always 20 bytes
+	pdata[RDM_IDX_SUB_START_CODE]	= RDM_SUB_START_CODE;
+	pdata[RDM_IDX_PACKET_SIZE]		= msglen;
+	
+	// must set target UID outside this method
+	UID::copyFromUID(THIS_DEVICE_ID, pdata, RDM_IDX_SOURCE_UID);
+	
+	pdata[RDM_IDX_TRANSACTION_NUM]	= _transaction++;
+	pdata[RDM_IDX_PORT]				= port;
+	pdata[RDM_IDX_MSG_COUNT]		= 0x00;		//(always zero for controller msgs)
+	pdata[RDM_IDX_SUB_DEV_MSB]		= subdevice >> 8;
+	pdata[RDM_IDX_SUB_DEV_LSB]		= subdevice & 0xFF;
+	// total always 20 bytes
 }
 
 void  LX8266DMX::setupRDMDevicePacket(uint8_t* pdata, uint8_t msglen, uint8_t rtype, uint8_t msgs, uint16_t subdevice) {
 	pdata[RDM_IDX_START_CODE]		= RDM_START_CODE;
-  	pdata[RDM_IDX_SUB_START_CODE]	= RDM_SUB_START_CODE;
-  	pdata[RDM_IDX_PACKET_SIZE]		= msglen;
-  	
-  	// must set target UID outside this method
-  	UID::copyFromUID(THIS_DEVICE_ID, pdata, RDM_IDX_SOURCE_UID);
-  	
-  	pdata[RDM_IDX_TRANSACTION_NUM]	= _transaction;		//set this on read
-  	pdata[RDM_IDX_RESPONSE_TYPE]	= rtype;
-  	pdata[RDM_IDX_MSG_COUNT]		= msgs;
-  	pdata[RDM_IDX_SUB_DEV_MSB] 		= subdevice >> 8;
-  	pdata[RDM_IDX_SUB_DEV_LSB] 		= subdevice & 0xFF;
-  	// total always 20 bytes
+	pdata[RDM_IDX_SUB_START_CODE]	= RDM_SUB_START_CODE;
+	pdata[RDM_IDX_PACKET_SIZE]		= msglen;
+	
+	// must set target UID outside this method
+	UID::copyFromUID(THIS_DEVICE_ID, pdata, RDM_IDX_SOURCE_UID);
+	
+	pdata[RDM_IDX_TRANSACTION_NUM]	= _transaction;		//set this on read
+	pdata[RDM_IDX_RESPONSE_TYPE]	= rtype;
+	pdata[RDM_IDX_MSG_COUNT]		= msgs;
+	pdata[RDM_IDX_SUB_DEV_MSB]		= subdevice >> 8;
+	pdata[RDM_IDX_SUB_DEV_LSB]		= subdevice & 0xFF;
+	// total always 20 bytes
 }
 
 void  LX8266DMX::setupRDMMessageDataBlock(uint8_t* pdata, uint8_t cmdclass, uint16_t pid, uint8_t pdl) {
-	pdata[RDM_IDX_CMD_CLASS] 		= cmdclass;
-  	pdata[RDM_IDX_PID_MSB] 			= (pid >> 8) & 0xFF;
-  	pdata[RDM_IDX_PID_LSB]			 = pid & 0xFF;
-  	pdata[RDM_IDX_PARAM_DATA_LEN] 	= pdl;
-  	// total always 4 bytes
+	pdata[RDM_IDX_CMD_CLASS]		= cmdclass;
+	pdata[RDM_IDX_PID_MSB]			= (pid >> 8) & 0xFF;
+	pdata[RDM_IDX_PID_LSB]			= pid & 0xFF;
+	pdata[RDM_IDX_PARAM_DATA_LEN]	= pdl;
+	// total always 4 bytes
 }
 
 uint8_t LX8266DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
@@ -883,8 +882,8 @@ uint8_t LX8266DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
 	setupRDMControllerPacket(_rdmPacket, RDM_DISC_UNIQUE_BRANCH_MSGL, RDM_PORT_ONE, RDM_ROOT_DEVICE);
 	UID::copyFromUID(BROADCAST_ALL_DEVICES_ID, _rdmPacket, 3);
 	setupRDMMessageDataBlock(_rdmPacket, RDM_DISCOVERY_COMMAND, RDM_DISC_UNIQUE_BRANCH, RDM_DISC_UNIQUE_BRANCH_PDL);
-  	UID::copyFromUID(lower, _rdmPacket, 24);
-  	UID::copyFromUID(upper, _rdmPacket, 30);
+	UID::copyFromUID(lower, _rdmPacket, 24);
+	UID::copyFromUID(upper, _rdmPacket, 30);
 	
 	_rdm_read_handled = 1;
 	sendRawRDMPacket(RDM_DISC_UNIQUE_BRANCH_PKTL);
@@ -1125,7 +1124,7 @@ void LX8266DMX::sendRDMDiscoverBranchResponse( void ) {
 	_rdmPacket[7] = 0xFE;
 	_rdmPacket[8] = 0xAA;
 	
-	_rdmPacket[9] = THIS_DEVICE_ID.rawbytes()[0] | 0xAA;
+	_rdmPacket[9]  = THIS_DEVICE_ID.rawbytes()[0] | 0xAA;
 	_rdmPacket[10] = THIS_DEVICE_ID.rawbytes()[0] | 0x55;
 	_rdmPacket[11] = THIS_DEVICE_ID.rawbytes()[1] | 0xAA;
 	_rdmPacket[12] = THIS_DEVICE_ID.rawbytes()[1] | 0x55;
@@ -1149,15 +1148,15 @@ void LX8266DMX::sendRDMDiscoverBranchResponse( void ) {
 	
 	// send (no break)
 	_rdm_len = 25;
-	digitalWrite(_direction_pin, HIGH); 	// could cut off receiving (?)
+	digitalWrite(_direction_pin, HIGH);		// could cut off receiving (?)
 	delayMicroseconds(100);
 	_next_send_slot = 1;//SKIP start code
 	uart_set_baudrate(UART1, DMX_DATA_BAUD);
-	uart_set_config(UART1, FORMAT_8N2);	
+	uart_set_config(UART1, FORMAT_8N2);
 	_dmx_send_state = DMX_STATE_DATA;
 	
 	_rdm_task_mode = DMX_TASK_SEND_RDM;
-	 //set the interrupt
+	//set the interrupt
 	USIE(UART1) |= (1 << UIFE);
 
 	
