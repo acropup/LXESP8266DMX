@@ -26,7 +26,7 @@
 
 #define STORAGE_SIZE 1200
 
-/*!   
+/*!
 @class TOD
 @abstract
    Implements an RDM table of devices.  Contains a list of up to 200 UIDs.
@@ -34,11 +34,11 @@
 
 class TOD {
 private:
-    uint8_t   storage[STORAGE_SIZE];
-    uint16_t  next;
+	uint8_t   storage[STORAGE_SIZE];
+	uint16_t  next;
 
 public:
-    TOD( void );
+	TOD( void );
 
 	/*!
 	 * @brief add UID to array
@@ -68,14 +68,14 @@ public:
 	/*!
 	 * @brief calls addUID, does nothing if not enough room
 	 */
-	void push (UID uid);
+	void push(UID uid);
 	/*!
 	 * @brief pops the last 6 bytes from storage
 	 * @discussion Sets the bytes of the UID, using last 6 bytes of storage
 	 *             and decreases next index by 6
 	 * @returns 0 if no more remaining, otherwise 1
 	 */
-	uint8_t pop (UID* uid);
+	uint8_t pop(UID* uid);
 	
 	/*!
 	 * @brief searches storage for match to UID
@@ -92,7 +92,7 @@ public:
 	/*!
 	 * @brief Zeros out the table
 	 */
-	void    reset( void );
+	void reset( void );
 	
 	/*!
 	 * @brief pointer to the raw storage bytes
@@ -102,7 +102,7 @@ public:
 	/*!
 	 * @brief utility to print the table using Serial
 	 */
-	void    printTOD( void );
+	void printTOD( void );
 };
 
 

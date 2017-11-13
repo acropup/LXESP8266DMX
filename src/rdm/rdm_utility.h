@@ -50,7 +50,7 @@ RDM Packet format
 		byte[2] = 24 + byte[23]
 		bytesSent = 26 + byte[23]
 
-*/ 
+*/
 
 #ifndef RDMutility_h
 #define RDMutility_h
@@ -86,19 +86,19 @@ extern "C" {
 #define RDM_DISC_MUTE			0x0002
 #define RDM_DISC_UNMUTE			0x0003
 
-// product information  PIDs
+// product information PIDs
 #define RDM_DEVICE_INFO			0x0060
 #define RDM_DEVICE_START_ADDR	0x00F0
-#define RDM_DEVICE_MODEL_DESC   0x0080
-#define RDM_DEVICE_MFG_LABEL    0x0081
-#define RDM_DEVICE_DEV_LABEL    0x0082
+#define RDM_DEVICE_MODEL_DESC	0x0080
+#define RDM_DEVICE_MFG_LABEL	0x0081
+#define RDM_DEVICE_DEV_LABEL	0x0082
 
-// control information  PIDs
+// control information PIDs
 #define RDM_IDENTIFY_DEVICE		0x1000
 
 // packet heading constants
-#define RDM_PORT_ONE				0x01
-#define RDM_ROOT_DEVICE				0x0000
+#define RDM_PORT_ONE			0x01
+#define RDM_ROOT_DEVICE			0x0000
 
 // RDM packet byte indexes
 #define RDM_IDX_START_CODE				0
@@ -137,16 +137,16 @@ extern "C" {
 /*
  *  rdmChecksum calculates mod 0x10000 sum of bytes
  *  this is used in an RDM packet as follows
- *	bytes[len]   = rdmChecksum[MSB]
- *	bytes[len+1] = rdmChecksum[LSB]
+ *  bytes[len]   = rdmChecksum[MSB]
+ *  bytes[len+1] = rdmChecksum[LSB]
  *
  */
 uint16_t rdmChecksum(uint8_t* bytes, uint8_t len);
 
 /*
  *  testRDMChecksum evaluates cksum and returns true if both
- *	bytes[index]   == cksum[MSB]
- *	bytes[index+1] == cksum[LSB]
+ *  bytes[index]   == cksum[MSB]
+ *  bytes[index+1] == cksum[LSB]
  *
  */
 uint8_t testRDMChecksum(uint16_t cksum, uint8_t* data, uint8_t index);

@@ -18,7 +18,7 @@
 #include <rdm/rdm_utility.h>
 
 TOD::TOD( void ) {
-    reset();
+	reset();
 }
 
 
@@ -87,7 +87,7 @@ uint8_t TOD::contains( UID uid ) {
 	UID u(0,0,0,0,0,0);
 	while ( index >= 0 ) {
 		index = getNextUID(index, &u);
-		if ( index > 0 )  {
+		if ( index > 0 ) {
 			if ( uid == u ) {
 				return 1;
 			}
@@ -102,7 +102,7 @@ uint8_t TOD::count( void ) {
 
 void TOD::reset( void ) {
 	memset(storage, 0, 1200);
-    next = 0;
+	next = 0;
 }
 
 uint8_t* TOD::rawBytes( void ) {
@@ -116,7 +116,7 @@ void TOD::printTOD( void ) {
 	UID u(0,0,0,0,0,0);
 	while ( index >= 0 ) {
 		index = getNextUID(index, &u);
-		if ( index > 0 )  {
+		if ( index > 0 ) {
 			Serial.println(u);
 		}
 	}
