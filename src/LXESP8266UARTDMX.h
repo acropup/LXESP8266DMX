@@ -172,7 +172,7 @@ class LX8266DMX {
 		void setDirectionPin( uint8_t pin );
 		
 		/*!
-		* @brief the current number of slots
+		* @brief the number of slots received
 		*/
 		uint16_t numberOfSlots(void);
 		
@@ -476,9 +476,14 @@ class LX8266DMX {
 		uint16_t  _next_read_slot;
 		
 		/*!
-		* @brief number of dmx slots ~24 to 512
+		* @brief number of dmx slots received ~24 to 512
 		*/
-		uint16_t  _slots;
+		uint16_t  _num_received_slots;
+		
+		/*!
+		* @brief number of dmx slots to transmit ~24 to 512
+		*/
+		uint16_t  _tx_max_slots;
 		
 		/*!
 		* @brief outgoing rdm packet length

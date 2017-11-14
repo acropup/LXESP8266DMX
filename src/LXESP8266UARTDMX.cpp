@@ -348,7 +348,7 @@ parity
 
 LX8266DMX::LX8266DMX ( void ) {
 	_direction_pin = DIRECTION_PIN_NOT_USED;	//optional
-	_slots = DMX_MAX_SLOTS;
+	_tx_max_slots = DMX_MAX_SLOTS;
 	_interrupt_status = ISR_DISABLED;
 	clearSlots();
 }
@@ -425,11 +425,11 @@ void LX8266DMX::setDirectionPin( uint8_t pin ) {
 }
 
 uint16_t LX8266DMX::numberOfSlots (void) {
-	return _slots;
+	return _num_received_slots;
 }
 
 void LX8266DMX::setMaxSlots (int slots) {
-	_slots = max(slots, DMX_MIN_SLOTS);
+	_tx_max_slots = max(slots, DMX_MIN_SLOTS);
 }
 
 void LX8266DMX::setSlot (int slot, uint8_t value) {
@@ -471,7 +471,7 @@ uint8_t* LX8266DMX::receivedRDMData( void ) {
  *
  * and the cycle repeats...
  *
- * until _slots worth of bytes have been sent on succesive triggers of the ISR
+ * until _tx_max_slots worth of bytes have been sent on succesive triggers of the ISR
  *
  * and then the fifo empty interrupt is allowed to trigger 25 times to insure the last byte is fully sent
  *
@@ -513,7 +513,7 @@ ICACHE_RAM_ATTR void LX8266DMX::txEmptyInterruptHandler(void) {
 		case DMX_STATE_DATA:
 			// send the next data byte until the end is reached
 			USF(1) = _dmxData[_next_send_slot++];	//send next slot
-			if ( _next_send_slot > _slots ) {
+			if ( _next_send_slot > _tx_max_slots ) {
 				_dmx_send_state = DMX_STATE_IDLE;
 				_idle_count = 0;
 			}
@@ -578,7 +578,7 @@ ICACHE_RAM_ATTR void LX8266DMX::rdmTxEmptyInterruptHandler(void) {
 					//setTask to receive
 					USIE(UART1) &= ~(1 << UIFE);			// uart_disable_tx_interrupt();
 					digitalWrite(_direction_pin, LOW);		// call from interrupt only because receiving starts
-					_next_read_slot = 0;						// and these flags need to be set
+					_next_read_slot = 0;					// and these flags need to be set
 					_packet_length = DMX_MAX_FRAME;			// but no bytes read from fifo until next task loop
 					if ( _rdm_read_handled ) {
 						_dmx_read_state = DMX_READ_STATE_RECEIVING;
@@ -625,7 +625,7 @@ ICACHE_RAM_ATTR void LX8266DMX::rdmTxEmptyInterruptHandler(void) {
 			case DMX_STATE_DATA:
 				// send the next data byte until the end is reached
 				USF(1) = _dmxData[_next_send_slot++];	//send next slot
-				if ( _next_send_slot > _slots ) {
+				if ( _next_send_slot > _tx_max_slots ) {
 					_dmx_send_state = DMX_STATE_IDLE;
 					_idle_count = 0;
 				}
@@ -666,21 +666,21 @@ void LX8266DMX::printReceivedData( void ) {
 }
 
 ICACHE_RAM_ATTR void LX8266DMX::packetComplete( void ) {
-	if ( _receivedData[0] == 0 ) {				//zero start code is DMX
+	if ( _receivedData[0] == 0 ) {				// zero start code is DMX
 		if ( _rdm_read_handled == 0 ) {			// not handled by specific method
 			if ( _next_read_slot > DMX_MIN_SLOTS ) {
-				_slots = _next_read_slot - 1;			//_next_read_slot represents next slot so subtract one
+				_num_received_slots = _next_read_slot - 1;			//_next_read_slot represents next slot so subtract one
 				for(int j=0; j<_next_read_slot; j++) {	//copy dmx values from read buffer
 					_dmxData[j] = _receivedData[j];
 				}
 	
 				if ( _receive_callback != NULL ) {
-					_receive_callback(_slots);
+					_receive_callback(_num_received_slots);
 				}
 			}
 		}
 	} else {
-		if ( _receivedData[0] == RDM_START_CODE ) {			//zero start code is RDM
+		if ( _receivedData[0] == RDM_START_CODE ) {			// start code is RDM
 			if ( _rdm_read_handled == 0 ) {					// not handled by specific method
 				if ( validateRDMPacket(_receivedData) ) {	// evaluate checksum
 					uint8_t plen = _receivedData[2] + 2;
@@ -703,13 +703,13 @@ ICACHE_RAM_ATTR void LX8266DMX::packetComplete( void ) {
 }
 
 ICACHE_RAM_ATTR void LX8266DMX::resetFrame( void ) {		
-	_dmx_read_state = DMX_READ_STATE_IDLE;						// insure wait for next break
+	_dmx_read_state = DMX_READ_STATE_IDLE;				// insure wait for next break
 	//_dmx_send_state????
 }
 
 ICACHE_RAM_ATTR void LX8266DMX::breakReceived( void ) {
-	if ( _dmx_read_state == DMX_READ_STATE_RECEIVING ) {	// break has already been detected
-		if ( _next_read_slot > 1 ) {						// break before end of maximum frame
+	if ( _dmx_read_state == DMX_READ_STATE_RECEIVING ) {// break has already been detected
+		if ( _next_read_slot > 1 ) {					// break before end of maximum frame
 			if ( _receivedData[0] == 0 ) {				// zero start code is DMX
 				packetComplete();						// packet terminated with slots<512
 			}
@@ -723,15 +723,15 @@ ICACHE_RAM_ATTR void LX8266DMX::breakReceived( void ) {
 ICACHE_RAM_ATTR void LX8266DMX::byteReceived(uint8_t c) {
 	if ( _dmx_read_state == DMX_READ_STATE_RECEIVING ) {
 		_receivedData[_next_read_slot] = c;
-		if ( _next_read_slot == 2 ) {						//RDM length slot
-			if ( _receivedData[0] == RDM_START_CODE ) {			//RDM start code
+		if ( _next_read_slot == 2 ) {					//RDM length slot
+			if ( _receivedData[0] == RDM_START_CODE ) {	//RDM start code
 				if ( _rdm_read_handled == 0 ) {
 					_packet_length = c + 2;				//add two bytes for checksum
 				}
 			} else if ( _receivedData[0] == 0xFE ) {	//RDM Discovery Response
 				_packet_length = DMX_MAX_FRAME;
 			} else if ( _receivedData[0] != 0 ) {		// if Not Null Start Code
-				_dmx_read_state = DMX_STATE_IDLE;			//unrecognized, ignore packet
+				_dmx_read_state = DMX_STATE_IDLE;		//unrecognized, ignore packet
 			}
 		}
 	
