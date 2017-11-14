@@ -383,8 +383,6 @@ void LX8266DMX::startInput ( void ) {
 		uart_init_rx(DMX_DATA_BAUD, FORMAT_8N2);
 		uart_enable_rx_interrupt(this);
 	}
-		_dmx_read_state = DMX_STATE_IDLE;
-	}
 }
 
 void LX8266DMX::startRDM ( uint8_t pin, uint8_t direction ) {
