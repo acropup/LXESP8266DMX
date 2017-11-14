@@ -697,7 +697,7 @@ ICACHE_RAM_ATTR void LX8266DMX::packetComplete( void ) {
 	if ( _receivedData[0] == 0 ) {				//zero start code is DMX
 		if ( _rdm_read_handled == 0 ) {			// not handled by specific method
 			if ( _next_read_slot > DMX_MIN_SLOTS ) {
-				_slots = _next_read_slot - 1;				//_next_read_slot represents next slot so subtract one
+				_slots = _next_read_slot - 1;			//_next_read_slot represents next slot so subtract one
 				for(int j=0; j<_next_read_slot; j++) {	//copy dmx values from read buffer
 					_dmxData[j] = _receivedData[j];
 				}
@@ -715,7 +715,7 @@ ICACHE_RAM_ATTR void LX8266DMX::packetComplete( void ) {
 					for(int j=0; j<plen; j++) {
 						_rdmData[j] = _receivedData[j];
 					}
-					if ( _receive_callback != NULL ) {
+					if ( _rdm_receive_callback != NULL ) {
 						_rdm_receive_callback(plen);
 					}
 				}

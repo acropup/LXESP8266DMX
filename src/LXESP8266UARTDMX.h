@@ -114,14 +114,14 @@ typedef void (*LXRecvCallback)(int);
 /*!   
 @class LX8266DMX
 @abstract
-	LX8266DMX is a driver for sending or receiving DMX using an ESP8266
-	UART1 which has TX mapped to GPIO2 is used for output
-	UART0 which is mapped to the RX pin is used for input
+	LX8266DMX is a driver for sending or receiving DMX using an ESP8266.
+	UART1 which has TX mapped to GPIO2 is used for output.
+	UART0 which is mapped to the RX pin is used for input.
 	
 	LX8266DMX output mode continuously sends DMX once its interrupts have been enabled using startOutput().
 	Use setSlot() to set the level value for a particular DMX dimmer/address/channel.
 	
-	LX8266DMX input mode receives DMX using the ESP8266's UART0 RX pin
+	LX8266DMX input mode receives DMX using the ESP8266's UART0 RX pin.
 	LX8266DMX continuously updates its DMX buffer once its interrupts have been enabled using startInput()
 	and DMX data is received by UART0.
 	Use getSlot() to read the level value for a particular DMX dimmer/address/channel.
