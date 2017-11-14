@@ -362,10 +362,8 @@ void LX8266DMX::startOutput ( void ) {
 	if ( _direction_pin != DIRECTION_PIN_NOT_USED ) {
 		digitalWrite(_direction_pin, HIGH);
 	}
-	if ( _interrupt_status != ISR_OUTPUT_ENABLED ) {
+	if ( _interrupt_status != ISR_OUTPUT_ENABLED ) {	//prevent messing up sequence if already started...
 		stop();
-	}
-	if ( _interrupt_status == ISR_DISABLED ) {	//prevent messing up sequence if already started...
 		_interrupt_status = ISR_OUTPUT_ENABLED;
 		_dmx_send_state = DMX_STATE_BREAK;
 		_idle_count = 0;
@@ -378,14 +376,14 @@ void LX8266DMX::startInput ( void ) {
 	if ( _direction_pin != DIRECTION_PIN_NOT_USED ) {
 		digitalWrite(_direction_pin, LOW);
 	}
-	if ( _interrupt_status != ISR_INPUT_ENABLED ) {
+	if ( _interrupt_status != ISR_INPUT_ENABLED ) {	//prevent messing up sequence if already started...
 		stop();
+		_interrupt_status = ISR_INPUT_ENABLED;
+		_dmx_read_state = DMX_STATE_IDLE;
 		uart_init_rx(DMX_DATA_BAUD, FORMAT_8N2);
 		uart_enable_rx_interrupt(this);
 	}
-	if ( _interrupt_status == ISR_DISABLED ) {	//prevent messing up sequence if already started...
 		_dmx_read_state = DMX_STATE_IDLE;
-		_interrupt_status = ISR_INPUT_ENABLED;
 	}
 }
 
@@ -397,8 +395,6 @@ void LX8266DMX::startRDM ( uint8_t pin, uint8_t direction ) {
 
 	if ( _interrupt_status != ISR_RDM_ENABLED ) {
 		stop();
-	}
-	if ( _interrupt_status == ISR_DISABLED ) {
 		_interrupt_status = ISR_RDM_ENABLED;
 		//TX
 		_dmx_send_state = DMX_STATE_BREAK;
