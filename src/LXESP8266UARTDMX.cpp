@@ -87,9 +87,9 @@ void uart_enable_tx_interrupt(LX8266DMX* dmxo);
 void uart_disable_tx_interrupt(void);
 void uart_set_baudrate(int uart_nr, int baud_rate);
 
-void uart_init_tx(int baudrate, byte config, LX8266DMX* dmxo);
-void uart_init_rx(int baudrate, byte config, LX8266DMX* dmxi);
-void uart_init_rdm(int baudrate, byte config, int txbaudrate, byte txconfig, LX8266DMX* dmxr);
+void uart_init_tx(int baudrate, byte config);
+void uart_init_rx(int baudrate, byte config);
+void uart_init_rdm(int baudrate, byte config, int txbaudrate, byte txconfig);
 
 void uart_uninit_tx(void);
 void uart_uninit_rx(void);
@@ -250,14 +250,13 @@ void uart_set_config(int uart_nr, byte config) {
 
 // ------------- uart_init functions
 
-void uart_init_tx(int baudrate, byte config, LX8266DMX* dmxo) {
+void uart_init_tx(int baudrate, byte config) {
 	pinMode(2, SPECIAL);
 	uint32_t conf1 = 0x00000000;
 	
 	uart_set_baudrate(UART1, baudrate);
 	USC0(UART1) = config;
 	uart_tx_flush();
-	uart_enable_tx_interrupt(dmxo);
 
 	//conf1 |= (0x00 << UCFET);	// tx empty threshold is zero
 								// tx fifo empty interrupt triggers continuously unless
@@ -265,7 +264,7 @@ void uart_init_tx(int baudrate, byte config, LX8266DMX* dmxo) {
 	USC1(UART1) = conf1;
 }
 
-void uart_init_rx(int baudrate, byte config, LX8266DMX* dmxi) {
+void uart_init_rx(int baudrate, byte config) {
 	uint32_t conf1 = 0x00000000;
 	pinMode(3, SPECIAL);
 	uart_set_baudrate(UART0, baudrate);
@@ -275,35 +274,11 @@ void uart_init_rx(int baudrate, byte config, LX8266DMX* dmxi) {
 	USC1(UART0) = conf1;
 
 	uart_rx_flush();
-	uart_enable_rx_interrupt(dmxi);
 }
 
-void uart_init_rdm(int baudrate, byte config, int txbaudrate, byte txconfig, LX8266DMX* dmxr) {
-//TX
-	pinMode(2, SPECIAL);
-	uint32_t conf1 = 0x00000000;
-	
-	uart_set_baudrate(UART1, txbaudrate);
-	USC0(UART1) = txconfig;
-	uart_tx_flush();
-
-	//conf1 |= (0x00 << UCFET);	// tx empty threshold is zero
-								// tx fifo empty interrupt triggers continuously unless
-								// data register contains a byte which has not moved to shift reg yet
-	USC1(UART1) = conf1;
-
-//RX
-	conf1 = 0x00000000;
-	pinMode(3, SPECIAL);
-	uart_set_baudrate(UART0, baudrate);
-	USC0(UART0) = config;
-	
-	conf1 |= (0x01 << UCFFT);
-	USC1(UART0) = conf1;
-
-	uart_rx_flush();
-	
-	uart_enable_rdm_interrupts(dmxr);
+void uart_init_rdm(int baudrate, byte config, int txbaudrate, byte txconfig) {
+	uart_init_tx(txbaudrate, txconfig);
+	uart_init_rx(baudrate, config);
 }
 
 // ------------- uart_uninit functions
@@ -394,7 +369,8 @@ void LX8266DMX::startOutput ( void ) {
 		_interrupt_status = ISR_OUTPUT_ENABLED;
 		_dmx_send_state = DMX_STATE_BREAK;
 		_idle_count = 0;
-		uart_init_tx(DMX_BREAK_BAUD, FORMAT_8E1, this);//starts interrupt because fifo is empty								
+		uart_init_tx(DMX_BREAK_BAUD, FORMAT_8E1);	//starts interrupt because fifo is empty
+		uart_enable_tx_interrupt(this);
 	}
 }
 
@@ -404,10 +380,11 @@ void LX8266DMX::startInput ( void ) {
 	}
 	if ( _interrupt_status != ISR_INPUT_ENABLED ) {
 		stop();
+		uart_init_rx(DMX_DATA_BAUD, FORMAT_8N2);
+		uart_enable_rx_interrupt(this);
 	}
 	if ( _interrupt_status == ISR_DISABLED ) {	//prevent messing up sequence if already started...
 		_dmx_read_state = DMX_STATE_IDLE;
-		uart_init_rx(DMX_DATA_BAUD, FORMAT_8N2, this);
 		_interrupt_status = ISR_INPUT_ENABLED;
 	}
 }
@@ -428,7 +405,8 @@ void LX8266DMX::startRDM ( uint8_t pin, uint8_t direction ) {
 		_idle_count = 0;
 		//RX
 		_dmx_read_state = DMX_STATE_IDLE;
-		uart_init_rdm(DMX_DATA_BAUD, FORMAT_8N2, DMX_BREAK_BAUD, FORMAT_8E1, this);
+		uart_init_rdm(DMX_DATA_BAUD, FORMAT_8N2, DMX_BREAK_BAUD, FORMAT_8E1);
+		uart_enable_rdm_interrupts(this);
 	}
 	
 	if ( direction == 0 ) {
