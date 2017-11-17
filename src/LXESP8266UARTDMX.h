@@ -124,7 +124,7 @@ typedef void (*LXRecvCallback)(int);
 	LX8266DMX input mode receives DMX using the ESP8266's UART0 RX pin.
 	LX8266DMX continuously updates its DMX buffer once its interrupts have been enabled using startInput()
 	and DMX data is received by UART0.
-	Use getSlot() to read the level value for a particular DMX dimmer/address/channel.
+	Use getSlot() to read the received level value for a particular DMX dimmer/address/channel.
 	
 	LX8266DMX is used with a single instance called ESP8266DMX.
 */
@@ -148,9 +148,17 @@ class LX8266DMX {
 		* @brief starts interrupt that continuously reads DMX data
 		* @discussion sets up baud rate, bits and parity, 
 		*             sets globals accessed in ISR, 
-		*             enables transmission and tx interrupt
+		*             enables receive and rx interrupt
 		*/
 		void startInput( void );
+		
+		/*!
+		* @brief starts interrupt that sends and reads DMX data simultaneously
+		* @discussion sets up baud rate, bits and parity, 
+		*             sets globals accessed in ISR, 
+		*             enables tx/rx interrupts
+		*/
+		void startInputOutput( void );
 		
 		
 		/*!
@@ -186,16 +194,21 @@ class LX8266DMX {
 		void setMaxSlots(int slot);
 		
 		/*!
-		* @brief reads the value of a slot/address/channel
-		* @discussion NOTE: Data is not double buffered.  
-		*                   So a complete single frame is not guaranteed.  
-		*                   The ISR continuously reads the next frame into the buffer
+		* @brief reads the received value of a slot/address/channel
+		* @discussion Reads data from the most recently received DMX packet.
+		*             For direct access to this data, use receivedDMXData().
+		*             This is different from the output buffer written by setSlot().
+		*             To read slot values in the output buffer, access them directly
+		*             using dmxData().
 		* @return level (0-255)
 		*/
 		uint8_t getSlot(int slot);
 		
 		/*!
 		* @brief Sets the output value of a slot  Note:slot[0] is DMX start code!
+		* @discussion NOTE: Data is not double buffered.  
+		*                   So a complete single frame is not guaranteed.  
+		*                   The ISR continuously reads the next frame into the buffer
 		* @param slot number of the slot aka address or channel (1-512)
 		* @param value level (0-255)
 		*/
@@ -207,15 +220,32 @@ class LX8266DMX {
 		void clearSlots( void );
 		
 		/*!
-		* @brief provides direct access to data array
+		* @brief provides direct access to DMX output array
+		* @discussion NOTE: Data is not double buffered.  
+		*                   So a complete single frame is not guaranteed.  
+		*                   The ISR continuously reads the next frame into the buffer
 		* @return pointer to dmx array
 		*/
 		uint8_t* dmxData( void );
 		
 		uint8_t* rdmData( void );
 		
-		uint8_t* receivedData( void );
+		/*!
+		* @brief provides direct access to data array that the input interrupt (RX) writes to
+		* @return pointer to dmx input array
+		*/
+		uint8_t* receiveBuffer( void );
 		
+		/*!
+		* @brief provides direct access to the most recently received complete DMX packet
+		* @return pointer to dmx array
+		*/
+		uint8_t* receivedDMXData( void );
+		
+		/*!
+		* @brief provides direct access to the most recently received complete RDM packet
+		* @return pointer to dmx array
+		*/
 		uint8_t* receivedRDMData( void );
 		
 		/*!
@@ -239,9 +269,9 @@ class LX8266DMX {
 		
 		
 		/*!
-		* @brief utility for debugging prints received data
+		* @brief utility for debugging, prints the receive buffer data
 		*/
-		void printReceivedData( void );
+		void printReceiveBuffer( void );
 		
 		/*!
 		* @brief called when a packet is finished being received either through start of next packet or size reached
@@ -491,14 +521,19 @@ class LX8266DMX {
 		uint16_t  _rdm_len;
 		
 		/*!
-		* @brief Array of dmx data including start code
+		* @brief Array of outgoing dmx data including start code. Transmit ISR reads from here.
 		*/
 		uint8_t  _dmxData[DMX_MAX_FRAME];
 		
 		/*!
-		* @brief Array of received bytes first byte is start code
+		* @brief Array of received bytes. First byte is start code. Receive ISR writes into here.
 		*/
-		uint8_t  _receivedData[DMX_MAX_FRAME];
+		uint8_t  _receiveBuffer[DMX_MAX_FRAME];
+		
+		/*!
+		* @brief Array representing a received DMX packet. First byte is start code.
+		*/
+		uint8_t  _receivedDMXData[DMX_MAX_FRAME];
 		
 		/*!
 		* @brief Array representing an rdm packet to be sent

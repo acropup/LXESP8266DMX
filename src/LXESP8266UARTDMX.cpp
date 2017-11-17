@@ -13,6 +13,7 @@
     v1.1 - Consolidated Output and Input into a single class
     v2.1 - add RDM controller support
     v2.2 - RDM device support
+    v2.3 - Add simultaneous DMX rx and tx, so ESP can act as a DMX passthrough or translator
 */
 /**************************************************************************/
 
@@ -129,6 +130,15 @@ ICACHE_RAM_ATTR void uart_rx_interrupt_handler(LX8266DMX* dmxi) {
 	}
 }
 
+ICACHE_RAM_ATTR void uart_rx_tx_interrupt_handler(LX8266DMX* dmxio) {
+	//There is only one interrupt handler, so we need to disambiguate here
+	//between both transmit and receive interrupts.
+	
+	//TODO: See if this compiles inline. If not, we might want to inline manually.
+	uart_rx_interrupt_handler(dmxio);
+	uart_tx_interrupt_handler(dmxio);
+}
+
 ICACHE_RAM_ATTR void uart_rdm_interrupt_handler(LX8266DMX* dmxr) {
 
 	// -------------- UART 0 --------------
@@ -209,6 +219,28 @@ void uart_enable_tx_interrupt(LX8266DMX* dmxo) {
 void uart_disable_tx_interrupt(void) {
 	USIE(UART1) &= ~(1 << UIFE);
 	//ETS_UART_INTR_DISABLE();		disables all UART interrupts including Hardware serial
+}
+
+// ------------- uart_enable/disable RXTX functions
+//LX uses uart0 for rx, and uart1 for tx
+void uart_enable_rx_tx_interrupt(LX8266DMX* dmxio) {
+	USIC(UART0) = 0x1ff;				//clear all interrupts
+	USIC(UART1) = 0x1ff;
+	ETS_UART_INTR_ATTACH(&uart_rx_tx_interrupt_handler, dmxio);
+	//Configure RX interrupts
+	USIE(UART0) |= (1 << UIFF);	//receive full
+	//USIE(UART0) |= (1 << UIFR); frame error
+	USIE(UART0) |= (1 << UIBD);	//break detected
+	ETS_UART_INTR_ENABLE();
+	//Configure TX interrupts
+	USIE(UART1) |= (1 << UIFE);			//enable fifo empty interrupt
+	ETS_UART_INTR_ENABLE();
+}
+
+//LX uses uart0 for rx, and uart1 for tx
+void uart_disable_rx_tx_interrupt(void) {
+	uart_disable_rx_interrupt();
+	uart_disable_tx_interrupt();
 }
 
 // ------------- uart_enable/disable RDM functions
@@ -337,10 +369,11 @@ parity
 	#define BREAK_SENT_WAIT 80		//initially was 70 with processor at 80 mHz  set to 80 @ 160mHz
 
 	//***** status is if interrupts are enabled and IO is active
-	#define ISR_DISABLED 		0
-	#define ISR_OUTPUT_ENABLED 	1
-	#define ISR_INPUT_ENABLED 	2
-	#define ISR_RDM_ENABLED 	3
+	#define ISR_DISABLED 				0
+	#define ISR_OUTPUT_ENABLED 			1
+	#define ISR_INPUT_ENABLED 			2
+	#define ISR_INPUT_OUTPUT_ENABLED	3
+	#define ISR_RDM_ENABLED 			4
 
 
 /*******************************************************************************
@@ -385,6 +418,26 @@ void LX8266DMX::startInput ( void ) {
 	}
 }
 
+void LX8266DMX::startInputOutput ( void ) {
+	/* This mode does simultaneous input/output, so a single direction pin 
+	   doesn't make sense on its own.
+	if ( _direction_pin != DIRECTION_PIN_NOT_USED ) {
+		digitalWrite(_direction_pin, LOW);
+	}*/
+	if ( _interrupt_status != ISR_INPUT_OUTPUT_ENABLED ) {	//prevent messing up sequence if already started...
+		stop();
+		_interrupt_status = ISR_INPUT_OUTPUT_ENABLED;
+		//rx
+		_dmx_read_state = DMX_STATE_IDLE;
+		uart_init_rx(DMX_DATA_BAUD, FORMAT_8N2);
+		//tx
+		_dmx_send_state = DMX_STATE_BREAK;
+		_idle_count = 0;
+		uart_init_tx(DMX_BREAK_BAUD, FORMAT_8E1);//starts interrupt because fifo is empty
+		uart_enable_rx_tx_interrupt(this);
+	}
+}
+
 void LX8266DMX::startRDM ( uint8_t pin, uint8_t direction ) {
 	setDirectionPin(pin);
 	_rdm_task_mode = direction;
@@ -413,6 +466,9 @@ void LX8266DMX::stop ( void ) {
 		uart_uninit_tx();
 	} else if ( _interrupt_status == ISR_INPUT_ENABLED ) {
 		uart_uninit_rx();
+	} else if ( _interrupt_status == ISR_INPUT_OUTPUT_ENABLED ) {
+		uart_uninit_rx();
+		uart_uninit_tx();
 	} else if ( _interrupt_status == ISR_RDM_ENABLED ) {
 		uart_uninit_rdm();
 	}
@@ -437,7 +493,7 @@ void LX8266DMX::setSlot (int slot, uint8_t value) {
 }
 
 uint8_t LX8266DMX::getSlot (int slot) {
-	return _dmxData[slot];
+	return _receivedDMXData[slot];
 }
 
 void LX8266DMX::clearSlots (void) {
@@ -452,8 +508,12 @@ uint8_t* LX8266DMX::rdmData( void ) {
 	return _rdmPacket;
 }
 
-uint8_t* LX8266DMX::receivedData( void ) {
-	return _receivedData;
+uint8_t* LX8266DMX::receivedDMXData( void ) {
+	return _receivedDMXData;
+}
+
+uint8_t* LX8266DMX::receiveBuffer( void ) {
+	return _receiveBuffer;
 }
 
 uint8_t* LX8266DMX::receivedRDMData( void ) {
@@ -659,19 +719,19 @@ ICACHE_RAM_ATTR void LX8266DMX::rdmTxEmptyInterruptHandler(void) {
 
 //************************************************************************************
 
-void LX8266DMX::printReceivedData( void ) {
+void LX8266DMX::printReceiveBuffer( void ) {
 	for(int j=0; j<_next_read_slot; j++) {
-		Serial.println(_receivedData[j]);
+		Serial.println(_receiveBuffer[j]);
 	}
 }
 
 ICACHE_RAM_ATTR void LX8266DMX::packetComplete( void ) {
-	if ( _receivedData[0] == 0 ) {				// zero start code is DMX
+	if ( _receiveBuffer[0] == 0 ) {				// zero start code is DMX
 		if ( _rdm_read_handled == 0 ) {			// not handled by specific method
 			if ( _next_read_slot > DMX_MIN_SLOTS ) {
 				_num_received_slots = _next_read_slot - 1;			//_next_read_slot represents next slot so subtract one
 				for(int j=0; j<_next_read_slot; j++) {	//copy dmx values from read buffer
-					_dmxData[j] = _receivedData[j];
+					_receivedDMXData[j] = _receiveBuffer[j];
 				}
 	
 				if ( _receive_callback != NULL ) {
@@ -680,12 +740,12 @@ ICACHE_RAM_ATTR void LX8266DMX::packetComplete( void ) {
 			}
 		}
 	} else {
-		if ( _receivedData[0] == RDM_START_CODE ) {			// start code is RDM
+		if ( _receiveBuffer[0] == RDM_START_CODE ) {		// start code is RDM
 			if ( _rdm_read_handled == 0 ) {					// not handled by specific method
-				if ( validateRDMPacket(_receivedData) ) {	// evaluate checksum
-					uint8_t plen = _receivedData[2] + 2;
+				if ( validateRDMPacket(_receiveBuffer) ) {	// evaluate checksum
+					uint8_t plen = _receiveBuffer[2] + 2;
 					for(int j=0; j<plen; j++) {
-						_rdmData[j] = _receivedData[j];
+						_rdmData[j] = _receiveBuffer[j];
 					}
 					if ( _rdm_receive_callback != NULL ) {
 						_rdm_receive_callback(plen);
@@ -710,7 +770,7 @@ ICACHE_RAM_ATTR void LX8266DMX::resetFrame( void ) {
 ICACHE_RAM_ATTR void LX8266DMX::breakReceived( void ) {
 	if ( _dmx_read_state == DMX_READ_STATE_RECEIVING ) {// break has already been detected
 		if ( _next_read_slot > 1 ) {					// break before end of maximum frame
-			if ( _receivedData[0] == 0 ) {				// zero start code is DMX
+			if ( _receiveBuffer[0] == 0 ) {				// zero start code is DMX
 				packetComplete();						// packet terminated with slots<512
 			}
 		}
@@ -722,15 +782,15 @@ ICACHE_RAM_ATTR void LX8266DMX::breakReceived( void ) {
 
 ICACHE_RAM_ATTR void LX8266DMX::byteReceived(uint8_t c) {
 	if ( _dmx_read_state == DMX_READ_STATE_RECEIVING ) {
-		_receivedData[_next_read_slot] = c;
+		_receiveBuffer[_next_read_slot] = c;
 		if ( _next_read_slot == 2 ) {					//RDM length slot
-			if ( _receivedData[0] == RDM_START_CODE ) {	//RDM start code
+			if ( _receiveBuffer[0] == RDM_START_CODE ) {//RDM start code
 				if ( _rdm_read_handled == 0 ) {
 					_packet_length = c + 2;				//add two bytes for checksum
 				}
-			} else if ( _receivedData[0] == 0xFE ) {	//RDM Discovery Response
+			} else if ( _receiveBuffer[0] == 0xFE ) {	//RDM Discovery Response
 				_packet_length = DMX_MAX_FRAME;
-			} else if ( _receivedData[0] != 0 ) {		// if Not Null Start Code
+			} else if ( _receiveBuffer[0] != 0 ) {		// if Not Null Start Code
 				_dmx_read_state = DMX_STATE_IDLE;		//unrecognized, ignore packet
 			}
 		}
@@ -870,7 +930,7 @@ uint8_t LX8266DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
 		
 		// find preamble separator
 		for(j=0; j<8; j++) {
-			if ( _receivedData[j] == RDM_DISC_PREAMBLE_SEPARATOR ) {
+			if ( _receiveBuffer[j] == RDM_DISC_PREAMBLE_SEPARATOR ) {
 				break;
 			}
 		}
@@ -880,12 +940,12 @@ uint8_t LX8266DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
 				uint8_t bindex = j + 1;
 				
 				//calculate checksum of 12 slots representing UID
-				uint16_t checksum = rdmChecksum(&_receivedData[bindex], 12);
+				uint16_t checksum = rdmChecksum(&_receiveBuffer[bindex], 12);
 				
 				//convert dual bytes to payload of single bytes
 				uint8_t payload[8];
 				for (j=0; j<8; j++) {
-					payload[j] = _receivedData[bindex] & _receivedData[bindex+1];
+					payload[j] = _receiveBuffer[bindex] & _receiveBuffer[bindex+1];
 					bindex += 2;
 				}
 
@@ -921,10 +981,10 @@ uint8_t LX8266DMX::sendRDMDiscoveryMute(UID target, uint8_t cmd) {
 	delay(3);
 	
 	if ( _next_read_slot >= (RDM_PKT_BASE_TOTAL_LEN+2) ) {				//expected pdl 2 or 8
-		if ( validateRDMPacket(_receivedData) ) {
-			if ( _receivedData[RDM_IDX_RESPONSE_TYPE] == RDM_RESPONSE_TYPE_ACK ) {
-				if ( _receivedData[RDM_IDX_CMD_CLASS] == RDM_DISC_COMMAND_RESPONSE ) {
-					if ( THIS_DEVICE_ID == UID(&_receivedData[RDM_IDX_DESTINATION_UID]) ) {
+		if ( validateRDMPacket(_receiveBuffer) ) {
+			if ( _receiveBuffer[RDM_IDX_RESPONSE_TYPE] == RDM_RESPONSE_TYPE_ACK ) {
+				if ( _receiveBuffer[RDM_IDX_CMD_CLASS] == RDM_DISC_COMMAND_RESPONSE ) {
+					if ( THIS_DEVICE_ID == UID(&_receiveBuffer[RDM_IDX_DESTINATION_UID]) ) {
 						rv = 1;
 					}
 				}
@@ -956,10 +1016,10 @@ uint8_t LX8266DMX::sendRDMControllerPacket( void ) {
 	delay(3);
 	
 	if ( _next_read_slot > 0 ) {
-		if ( validateRDMPacket(_receivedData) ) {
-			uint8_t plen = _receivedData[2] + 2;
+		if ( validateRDMPacket(_receiveBuffer) ) {
+			uint8_t plen = _receiveBuffer[2] + 2;
 			for(int rv=0; rv<plen; rv++) {
-				_rdmData[rv] = _receivedData[rv];
+				_rdmData[rv] = _receiveBuffer[rv];
 			}
 			rv = 1;
 		}
