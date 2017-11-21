@@ -134,9 +134,18 @@ ICACHE_RAM_ATTR void uart_rx_tx_interrupt_handler(LX8266DMX* dmxio) {
 	//There is only one interrupt handler, so we need to disambiguate here
 	//between both transmit and receive interrupts.
 	
-	//TODO: See if this compiles inline. If not, we might want to inline manually.
-	uart_rx_interrupt_handler(dmxio);
-	uart_tx_interrupt_handler(dmxio);
+	//TODO: See if these functions calls compile inline. If not, we might want to inline manually.
+	
+	//NOTE: Avoid handling RX and TX interrupts in the same call. For some reason, the
+	//incoming data buffer ends up corrupted if both are handled. I don't know the root
+	//cause, so there may be a better solution, but for now we ignore TX events
+	//if there are RX interrupt events to handle, and this seems to fix it.
+	if (U0IS & ((1 << UIFF) | (1 << UIBD))) { //If there are RX interrupts
+		uart_rx_interrupt_handler(dmxio);
+	}
+	else {
+		uart_tx_interrupt_handler(dmxio);
+	}
 }
 
 ICACHE_RAM_ATTR void uart_rdm_interrupt_handler(LX8266DMX* dmxr) {
